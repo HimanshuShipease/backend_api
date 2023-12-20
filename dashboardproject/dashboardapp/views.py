@@ -5,7 +5,7 @@ from django.db.models import Case,Sum,Avg,When,Value,IntegerField,FloatField,Q,C
 from datetime import datetime, timedelta
 from django.db.models.expressions import RawSQL
 from dashboardapp.models import Parentsidebar,Orders,OrderTracking,NdrAttemps
-from dashboardapp.serializers import PsidebarSerializer,OrderTrackingSerializer,ChannelWiseOrderSerializer,ZoneWiseNdrOrdersSerializer
+from dashboardapp.serializers import PsidebarSerializer,LastthirtyDaySerializer,OrderTrackingSerializer,ChannelWiseOrderSerializer,ZoneWiseNdrOrdersSerializer
 from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -950,19 +950,18 @@ class AvrageSellingPrice(APIView):
 
 # daily shipment count
 class DailyShipment(APIView):
-   def get(self, request, format=None):
-      thirty_days_ago = timezone.now() - timezone.timedelta(days=180)
-      out_for_delevery_data = Orders.objects.filter(
-      inserted__gte=thirty_days_ago,
-      status='out_for_delivery').count()
-      total_deleverd_data = Orders.objects.filter(
-      inserted__gte=thirty_days_ago,
-      status='delivered').count()
-      total_shipment_data=int(out_for_delevery_data)+int(total_deleverd_data)
-      total_pending_data=Orders.objects.filter(
-      inserted__gte=thirty_days_ago,
-      status='pending').count()
-      return Response({'total_shipment_data':total_shipment_data,'total_pending_data':total_pending_data},status=status.HTTP_200_OK)
+    def get(self, request, format=None):
+        # today = timezone.now().date()
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=180)
+        # Calculate the total revenue for yesterday, filtering out records with null awb_number and status not canceled
+        daily_shipment = Orders.objects.filter(
+            inserted__date=thirty_days_ago,
+            awb_number__isnull=False,
+            status__iexact='cancelled').count()  
+        total_pending_data=Orders.objects.filter(
+        inserted__gte=thirty_days_ago,
+        status='pending').count()
+        return Response({'daily_shipment':daily_shipment,'total_pending_data':total_pending_data},status=status.HTTP_200_OK)
 
 #Api for today revenue count
 class TodayRevenueCount(APIView):
@@ -987,3 +986,150 @@ class TodayRevenueCount(APIView):
             'yesterday_revenue':yesterday_revenue
         }
         return Response(response_data, status=status.HTTP_200_OK)
+
+#Api for Count On time delevery 
+class DailyPrefrence(APIView):
+    def get_count_for_period(self, days_delta):
+        today = timezone.now().date()
+        start_date = today - timedelta(days=days_delta)
+        
+        return Orders.objects.filter(
+            inserted__date__range=[start_date, today],
+            status='delivered',
+            expected_delivery_date__lte=F('delivered_date')
+        ).count()
+
+    def get(self, request, format=None):
+        one_day = self.get_count_for_period(1)
+        one_week = self.get_count_for_period(7)
+        one_month = self.get_count_for_period(30)
+        three_month = self.get_count_for_period(90)
+        six_month = self.get_count_for_period(180)
+        one_year = self.get_count_for_period(365)
+        # responce_in_list=[]
+        response_data = {
+            'one_day': one_day,
+            'one_week': one_week,
+            'one_month': one_month,
+            'three_month': three_month,
+            'six_month':six_month,
+            'one_year':one_year
+        }
+        # responce_in_list.append(response_data)
+        # print("@@@@@@@@@@@@@@",responce_in_list)
+        return Response(response_data, status=status.HTTP_200_OK)
+
+#Api for late Delevery prefrences
+class LateDeleveryPrefrence(APIView):
+    def get_count_for_period(self, days_delta):
+        today = timezone.now().date()
+        start_date = today - timedelta(days=days_delta)
+        
+        return Orders.objects.filter(
+            inserted__date__range=[start_date, today],
+            # status='delivered',  # Adjust based on your actual status values
+            delivered_date__gte=F('expected_delivery_date'),
+            # status__iexact='canceled'
+        ).count()
+    def get(self, request, format=None):
+        one_day = self.get_count_for_period(1)
+        one_week = self.get_count_for_period(7)
+        one_month = self.get_count_for_period(30)
+        three_month = self.get_count_for_period(90)
+        six_month = self.get_count_for_period(180)
+        one_year = self.get_count_for_period(365)
+        response_data = {
+            'one_day': one_day,
+            'one_week': one_week,
+            'one_month': one_month,
+            'three_month': three_month,
+            'six_month': six_month,
+            'one_year': one_year
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+#last 30 day data
+class LastThirtyDayData(APIView):
+    def get(self, request, format=None):
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        print("@@@@@@@@@@@",thirty_days_ago)
+        snippets = Orders.objects.filter(inserted__gte=thirty_days_ago)
+        serializer = LastthirtyDaySerializer(snippets, many=True)
+        return Response(serializer.data)
+
+
+# calculate top couriar pathner awb_number__isnull=True
+class TopCouriarPathner(APIView):
+    def get(self, request, format=None):
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        total_count = Orders.objects.filter(awb_number__isnull=False,
+        inserted__gte=thirty_days_ago
+        ).count()
+        top_rto_city_data = Orders.objects.filter(
+            inserted__gte=thirty_days_ago,
+            awb_number__isnull=False
+        ).values('courier_partner').annotate(
+            top_courier_partner=F('courier_partner'),
+            awb_number=Count('id')
+        ).order_by('-awb_number')[:10]
+        response_data = [
+            {
+                'courier_partner': data['top_courier_partner'],
+                'awb_number': data['awb_number'],
+                'total_percentage': round((Decimal(data['awb_number']) / Decimal(total_count)) * 100, 2)
+            }
+            for data in top_rto_city_data
+        ]
+        return Response(response_data)
+
+# api for top most customer
+class TopCustomerApi(APIView):
+   def get(self, request, format=None):
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        # Get the top 10 customers based on the number of bookings
+        top_customers = Orders.objects.filter(
+            inserted__gte=thirty_days_ago
+        ).values('b_customer_name').annotate(
+            total_bookings=Count('id')
+        ).order_by('-total_bookings')[:10]
+        response_data = {
+            'top_customers': top_customers,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+#api for calculate ndr detail
+class NdrDetail(APIView):
+   def get(self, request, format=None):
+      thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+      monthly_ndr_count = Orders.objects.filter(
+      ndr_status='y',
+      ndr_raised_time__gte=thirty_days_ago).count()
+      total_ndr_requested_count = Orders.objects.filter( ndr_raised_time__gte=thirty_days_ago,ndr_action='requested').count()
+      total_pending_count = Orders.objects.filter( ndr_raised_time__gte=thirty_days_ago,ndr_action='pending').count()
+      total_delivered_ndr_count = Orders.objects.filter( ndr_raised_time__gte=thirty_days_ago,ndr_action='delivered').count()
+      response_data = {
+            'monthly_ndr_count': monthly_ndr_count,
+            'total_ndr_requested_count':total_ndr_requested_count,
+            'total_pending_count':total_pending_count,
+            'total_delivered_ndr_count':total_delivered_ndr_count
+        }
+      return Response(response_data, status=status.HTTP_200_OK)
+             
+#top selling product on overview
+class TopProduct(APIView):
+    def get(self, request, format=None):
+        # Get the top product SKUs based on order count
+        top_product_skus = Orders.objects.values('product_name').annotate(
+            order_count=Count('id')
+        ).order_by('-order_count')[:10]  # You can adjust the number as needed
+        top_product_data = [
+            {
+                'product_name': product['product_name'],
+                'order_count': product['order_count'],
+            }
+            for product in top_product_skus
+        ]
+
+        return Response(top_product_data)
+

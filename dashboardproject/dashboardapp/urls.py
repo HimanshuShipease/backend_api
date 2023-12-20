@@ -60,13 +60,21 @@ urlpatterns = [
     path('ofd-data/', views.OfdData.as_view(), name='ofd-dat/'),
     path('shipment-overview/', views.ShipmentOverviewByCourier.as_view(), name='shipment-overview/'),
 
-    ################# weight section start here ########################### TodayRevenueCount
+    ################# overview section start here ###########################  TopProduct
 
     path('status-wise-graph/', views.StatusWiseGraph.as_view(), name='status-wise-graph'),
     path('top-customer/', views.CalculateBestCustomer.as_view(), name='top-customer'),
     path('avg-sellingprice/', views.AvrageSellingPrice.as_view(), name='avg-sellingprice'),
     path('daly-shipment/', views.DailyShipment.as_view(), name='daly-shipment'),
     path('today-revenue/', views.TodayRevenueCount.as_view(), name='today-revenue'),
+    path('daily-prefrences/', views.DailyPrefrence.as_view(), name='daily-prefrences'),
+    path('late-delevery-prefrence/', views.LateDeleveryPrefrence.as_view(), name='late-delevery-prefrence'),
+    path('lastthirtydata/', views.LastThirtyDayData.as_view(), name='lastthirtydata'),
+    path('top-couriar-pathner/', views.TopCouriarPathner.as_view(), name='top-couriar-pathner'),
+    path('top-customer-count/', views.TopCustomerApi.as_view(), name='top-customer-count'),
+    path('ndr-detail/', views.NdrDetail.as_view(), name='ndr-detail'),
+    path('topproduct/', views.TopProduct.as_view(), name='topproduct'),
+    
 
 
 

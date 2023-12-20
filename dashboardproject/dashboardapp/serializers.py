@@ -31,3 +31,20 @@ class lostShipmentDeleySerializer(serializers.ModelSerializer):
     class Meta:
         model = Orders
         fields =['status']
+
+############### overview section start here###############
+
+class LastthirtyDaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Orders
+        fields =['status',
+        'order_number',
+        'customer_order_number',
+        'awb_number',
+        'courier_partner',
+        'shipping_charges',
+        'total_charges',
+        'total_charges',
+        'weight',
+        'status'
+        ]
