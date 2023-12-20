@@ -53,11 +53,23 @@ urlpatterns = [
     path('reverse-deley/', views.ReverseDeley.as_view(), name='reverse-deley'),
     path('intrangit-deley/', views.IntrangitDeley.as_view(), name='intrangit-deley/'),
 
-    #################weight section start here########### OfdData
+    #################weight section start here########### ShipmentOverviewByCourier
 
     path('top-weight/', views.WeightProfileInKg.as_view(), name='top-weight/'),
     path('zone-wise-data/', views.ZonewiseCount.as_view(), name='zone-wise-dat/'),
     path('ofd-data/', views.OfdData.as_view(), name='ofd-dat/'),
+    path('shipment-overview/', views.ShipmentOverviewByCourier.as_view(), name='shipment-overview/'),
+
+    ################# weight section start here ########################### TodayRevenueCount
+
+    path('status-wise-graph/', views.StatusWiseGraph.as_view(), name='status-wise-graph'),
+    path('top-customer/', views.CalculateBestCustomer.as_view(), name='top-customer'),
+    path('avg-sellingprice/', views.AvrageSellingPrice.as_view(), name='avg-sellingprice'),
+    path('daly-shipment/', views.DailyShipment.as_view(), name='daly-shipment'),
+    path('today-revenue/', views.TodayRevenueCount.as_view(), name='today-revenue'),
+
+
+
 
 
 

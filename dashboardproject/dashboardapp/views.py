@@ -1,7 +1,7 @@
 from django.db import models
 
 from django.shortcuts import render
-from django.db.models import Case, When,Value,IntegerField,FloatField,Q,Count,Func,DateField,F,ExpressionWrapper,fields,ExpressionWrapper,BooleanField
+from django.db.models import Case,Sum,Avg,When,Value,IntegerField,FloatField,Q,Count,Func,DateField,F,ExpressionWrapper,fields,ExpressionWrapper,BooleanField
 from datetime import datetime, timedelta
 from django.db.models.expressions import RawSQL
 from dashboardapp.models import Parentsidebar,Orders,OrderTracking,NdrAttemps
@@ -94,6 +94,7 @@ class TotalCancelOrderGraph(APIView):
 
 
 # http://127.0.0.1:8000/api/v1/cancel-orders-graph/?start_month=1&end_month=6  
+
 class ChannalWiseGraph(APIView):
     def get(self, request, format=None):
         # Get total count for all channels
@@ -862,5 +863,127 @@ class OfdData(APIView):
             }
             for item in monthly_counts
         ]
+        return Response(response_data, status=status.HTTP_200_OK)
 
+#api for shipment overview by couruer
+class ShipmentOverviewByCourier(APIView):
+    def get(self, request, format=None):
+        # Assuming you have a 'courier_path' field in your Orders model
+        top_paths = Orders.objects.values('courier_partner').annotate(
+            total_awb_count=Count('awb_number')
+        ).order_by('-total_awb_count')[:10]
+
+        # Prepare the response data
+        response_data = [
+            {
+                'courier_partner': item['courier_partner'],
+                'total_awb_count': item['total_awb_count'],
+                # 'awb_numbers': list(Orders.objects.filter(courier_partner=item['courier_partner']).values_list('awb_number', flat=True)[:10])
+            }
+            for item in top_paths
+        ]
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+    #################### end shipment section here ######################     
+    ############# Over view section start  here#######################
+### Api for status wise graph
+class StatusWiseGraph(APIView):
+    def get(self, request, format=None):
+        # Get total count for all channels
+        total_count = Orders.objects.count()
+        # Get channel-wise data
+        channel_data = Orders.objects.values('status').annotate(
+            total_orders=Count('id')
+        )
+        # Calculate percentage for each channel
+        channel_percentage_data = [
+            {
+                'name': channel['status'],
+                'total_count': channel['total_orders'],
+                'total_percentage': round((Decimal(channel['total_orders']) / Decimal(total_count)) * 100, 2),
+            }
+            for channel in channel_data
+        ]
+        return Response(channel_percentage_data)
+
+# Api for total customer
+class CalculateBestCustomer(APIView):
+   def get(self, request, format=None):
+        # Calculate the date 30 days ago from today
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        total_customer=Orders.objects.values('b_customer_name').count()
+        top_customers = Orders.objects.filter(
+            inserted__gte=thirty_days_ago
+        ).values('b_customer_name').annotate(
+            total_orders=Count('id')
+        ).filter(total_orders__gt=1).order_by('-total_orders')[:10]
+        top_customers_with_awb_count = []
+        for customer in top_customers:
+            awb_count = Orders.objects.filter(
+                b_customer_name=customer['b_customer_name'],
+                inserted__gte=thirty_days_ago
+            ).count()
+            top_customers_with_awb_count.append({
+                # 'customer_name': customer['b_customer_name'],
+                'total_orders': customer['total_orders'],
+                'total_awb_count': awb_count,
+            })
+        top_customer=len(top_customers_with_awb_count)
+        return Response({'top_customer':top_customer,'total_customer':total_customer}, status=status.HTTP_200_OK)
+
+# avarage selling price
+class AvrageSellingPrice(APIView):
+   def get(self, request, format=None):
+    thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+    average_invoice_amount = Orders.objects.filter(
+        inserted__gte=thirty_days_ago
+    ).aggregate(
+        average_invoice_amount=Avg('invoice_amount')
+        # total_orders=Count('id')
+    )
+    response_data = {
+        'average_invoice_amount': average_invoice_amount['average_invoice_amount'],
+        # 'total_orders': average_invoice_amount['total_orders'],
+    }
+    return Response(response_data, status=status.HTTP_200_OK)
+
+# daily shipment count
+class DailyShipment(APIView):
+   def get(self, request, format=None):
+      thirty_days_ago = timezone.now() - timezone.timedelta(days=180)
+      out_for_delevery_data = Orders.objects.filter(
+      inserted__gte=thirty_days_ago,
+      status='out_for_delivery').count()
+      total_deleverd_data = Orders.objects.filter(
+      inserted__gte=thirty_days_ago,
+      status='delivered').count()
+      total_shipment_data=int(out_for_delevery_data)+int(total_deleverd_data)
+      total_pending_data=Orders.objects.filter(
+      inserted__gte=thirty_days_ago,
+      status='pending').count()
+      return Response({'total_shipment_data':total_shipment_data,'total_pending_data':total_pending_data},status=status.HTTP_200_OK)
+
+#Api for today revenue count
+class TodayRevenueCount(APIView):
+  def get(self, request, format=None):
+        today = timezone.now().date()
+        yesterday = today - timezone.timedelta(days=1)
+        total_revenue = Orders.objects.filter(
+            inserted__date=today
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+            'today_revenue': total_revenue,
+        }
+        yesterday_revenue = Orders.objects.filter(
+            inserted__date=yesterday
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+            'today_revenue': total_revenue,
+            'yesterday_revenue':yesterday_revenue
+        }
         return Response(response_data, status=status.HTTP_200_OK)

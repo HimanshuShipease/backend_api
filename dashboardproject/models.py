@@ -43,8 +43,7 @@ class Admin(models.Model):
     class Meta:
         managed = False
         db_table = 'admin'
-
-
+        
 class AdminEmployee(models.Model):
     admin_id = models.IntegerField()
     name = models.CharField(max_length=100, db_collation='utf8_unicode_ci', blank=True, null=True)
