@@ -5,7 +5,13 @@ from django.db.models import Case,Sum,Avg,When,Value,IntegerField,FloatField,Q,C
 from datetime import datetime, timedelta
 from django.db.models.expressions import RawSQL
 from dashboardapp.models import Parentsidebar,Orders,OrderTracking,NdrAttemps
-from dashboardapp.serializers import PsidebarSerializer,LastthirtyDaySerializer,OrderTrackingSerializer,ChannelWiseOrderSerializer,ZoneWiseNdrOrdersSerializer
+from dashboardapp.serializers import (PsidebarSerializer,
+LastthirtyDaySerializer,
+OrderTrackingSerializer,
+ChannelWiseOrderSerializer,
+ZoneWiseNdrOrdersSerializer,
+StateWiseSellCountSerializer
+)
 from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -950,18 +956,21 @@ class AvrageSellingPrice(APIView):
 
 # daily shipment count
 class DailyShipment(APIView):
-    def get(self, request, format=None):
-        # today = timezone.now().date()
-        thirty_days_ago = timezone.now() - timezone.timedelta(days=180)
-        # Calculate the total revenue for yesterday, filtering out records with null awb_number and status not canceled
-        daily_shipment = Orders.objects.filter(
-            inserted__date=thirty_days_ago,
-            awb_number__isnull=False,
-            status__iexact='cancelled').count()  
-        total_pending_data=Orders.objects.filter(
+   def get(self, request, format=None):
+    thirty_days_ago = timezone.now() - timezone.timedelta(days=180)
+
+    # Calculate the total revenue for yesterday, excluding records with null awb_number and status 'cancelled'
+    daily_shipment = Orders.objects.filter(
         inserted__gte=thirty_days_ago,
-        status='pending').count()
-        return Response({'daily_shipment':daily_shipment,'total_pending_data':total_pending_data},status=status.HTTP_200_OK)
+        awb_number__isnull=False
+    ).exclude(status__iexact='cancelled').count()
+
+    total_pending_data = Orders.objects.filter(
+        inserted__gte=thirty_days_ago,
+        status='pending'
+    ).exclude(status__iexact='cancelled').count()
+
+    return Response({'daily_shipment': daily_shipment, 'total_pending_data': total_pending_data}, status=status.HTTP_200_OK)
 
 #Api for today revenue count
 class TodayRevenueCount(APIView):
@@ -1116,11 +1125,11 @@ class NdrDetail(APIView):
         }
       return Response(response_data, status=status.HTTP_200_OK)
              
-#top selling product on overview
+#top selling product on overview  
 class TopProduct(APIView):
     def get(self, request, format=None):
         # Get the top product SKUs based on order count
-        top_product_skus = Orders.objects.values('product_name').annotate(
+        top_product_skus = Orders.objects.exclude(status__iexact='cancelled').values('product_name').annotate(
             order_count=Count('id')
         ).order_by('-order_count')[:10]  # You can adjust the number as needed
         top_product_data = [
@@ -1130,6 +1139,170 @@ class TopProduct(APIView):
             }
             for product in top_product_skus
         ]
-
         return Response(top_product_data)
 
+#Api for top city wise sell product 
+class TopProductStateWise(APIView):
+    def get(self, request, format=None):
+        # Get the top product SKUs based on order count
+        state_wise_top_product = Orders.objects.exclude(status__iexact='cancelled').values('b_state').annotate(
+            order_count=Count('id'),
+            sum_order=Sum('id')
+        ).order_by('-order_count')[:10]
+        total_sum_order = Orders.objects.exclude(status__iexact='cancelled').aggregate(sum_order=Sum('id'))['sum_order']
+        # sum_product = Orders.objects.exclude(status__iexact='cancelled').values('b_state').annotate(
+        #     order_count=Count('id'),
+        #     sum_order=Sum('order_count')
+        # )[:10]
+        top_product_data = [
+            {
+                'b_state': product['b_state'],
+                'order_count': product['order_count'],
+             
+            }
+            for product in state_wise_top_product
+        ]
+        # return Response(top_product_data)
+        return Response({'top_product_data': top_product_data, 'total_sum_order': total_sum_order}, status=status.HTTP_200_OK)
+
+class OrderPlaced(APIView):
+    def get(self, request, format=None):
+        one_year_ago = timezone.now() - timezone.timedelta(days=365)
+        awb_counts_per_month = Orders.objects.filter(
+            awb_assigned_date__gte=one_year_ago,
+            awb_number__isnull=False
+        ).exclude(status__iexact='cancelled').annotate(
+            month=TruncMonth('awb_assigned_date')
+        ).values('month').annotate(
+            awb_count=Count('awb_number', distinct=True)
+        ).order_by('month')
+        month_counts = {item['month'].strftime('%B'): item['awb_count'] if 'awb_count' in item else 0 for item in awb_counts_per_month}
+        all_months_data = [
+            {
+                'month': month,
+                'awb_count': month_counts.get(month, 0)
+            }
+            for month in month_name[1:]
+        ]
+        return Response(all_months_data, status=status.HTTP_200_OK)
+
+#api for weight disputed for one year
+class WeightDisputed(APIView):
+    def get(self, request, format=None):
+        one_year_ago = timezone.now() - timezone.timedelta(days=365)
+        awb_counts_per_month = Orders.objects.filter(
+            awb_assigned_date__gte=one_year_ago,
+            awb_number__isnull=False,
+            weight_disputed='n'
+        ).exclude(status__iexact='cancelled').annotate(
+            month=TruncMonth('inserted')
+        ).values('month').annotate(
+            awb_count=Count('awb_number', distinct=True)
+        ).order_by('month')
+        month_counts = {item['month'].strftime('%B'): item['awb_count'] if 'awb_count' in item else 0 for item in awb_counts_per_month}
+        all_months_data = [
+            {
+                'month': month,
+                'awb_count': month_counts.get(month, 0)
+            }
+            for month in month_name[1:]
+        ]
+        return Response(all_months_data, status=status.HTTP_200_OK)
+
+#one day reveue analist
+class OneRvenuAnalist(APIView):
+  def get(self, request, format=None):
+        today = timezone.now().date()
+        yesterday = today - timezone.timedelta(days=1)
+        total_revenue = Orders.objects.filter(
+            inserted__date=today
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+            'today_revenue': total_revenue,
+        }
+        yesterday_revenue = Orders.objects.filter(
+            inserted__date=yesterday
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+            'today_revenue': total_revenue, 
+            'yesterday_revenue':yesterday_revenue
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+class OneWeekRvenuAnalist(APIView):
+  def get(self, request, format=None):
+        today = timezone.now().date()
+        yesterday = today - timezone.timedelta(days=7)
+       
+        one_week = Orders.objects.filter(
+            inserted__date=yesterday
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+           
+            'one_week':one_week
+        }
+        return Response(response_data, status=status.HTTP_200_OK) 
+
+class OneMonthRvenuAnalist(APIView):
+  def get(self, request, format=None):
+        today = timezone.now().date()
+        yesterday = today - timezone.timedelta(days=30)
+        one_month_revenue = Orders.objects.filter(
+            inserted__date=yesterday
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+    
+            'one_month_revenue':one_month_revenue
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class ThreeMonthRvenuAnalist(APIView):
+  def get(self, request, format=None):
+        today = timezone.now().date()
+        yesterday = today - timezone.timedelta(days=90)
+        three_month = Orders.objects.filter(
+            inserted__date=yesterday
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+            'three_month':three_month
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class SixMonthRvenuAnalist(APIView):
+  def get(self, request, format=None):
+        yesterday = today - timezone.timedelta(days=180)
+        six_month = Orders.objects.filter(
+            inserted__date=yesterday
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+            'six_month':six_month
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+#one year revue analist count
+class OneYearRevenueAnalist(APIView):
+  def get(self, request, format=None):
+        yesterday = today - timezone.timedelta(days=365)
+        one_year = Orders.objects.filter(
+            inserted__date=yesterday
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        response_data = {
+            'one_year':one_year
+        }
+        return Response(response_data, status=status.HTTP_200_OK)                                                                            

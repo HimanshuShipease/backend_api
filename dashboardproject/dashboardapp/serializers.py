@@ -48,3 +48,8 @@ class LastthirtyDaySerializer(serializers.ModelSerializer):
         'weight',
         'status'
         ]
+
+class StateWiseSellCountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Orders
+        fields=['b_state','order_count']

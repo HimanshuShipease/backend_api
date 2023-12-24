@@ -60,7 +60,7 @@ urlpatterns = [
     path('ofd-data/', views.OfdData.as_view(), name='ofd-dat/'),
     path('shipment-overview/', views.ShipmentOverviewByCourier.as_view(), name='shipment-overview/'),
 
-    ################# overview section start here ###########################  TopProduct
+    ################# overview section start here ###########################  SixMonthRvenuAnalist
 
     path('status-wise-graph/', views.StatusWiseGraph.as_view(), name='status-wise-graph'),
     path('top-customer/', views.CalculateBestCustomer.as_view(), name='top-customer'),
@@ -74,6 +74,15 @@ urlpatterns = [
     path('top-customer-count/', views.TopCustomerApi.as_view(), name='top-customer-count'),
     path('ndr-detail/', views.NdrDetail.as_view(), name='ndr-detail'),
     path('topproduct/', views.TopProduct.as_view(), name='topproduct'),
+    path('statewiseproduct/', views.TopProductStateWise.as_view(), name='statewiseproduct'),
+    path('orderplaced/', views.OrderPlaced.as_view(), name='orderplaced'),
+    path('waitdipute/', views.WeightDisputed.as_view(), name='waitdipute'),
+    path('one-day-revenue/', views.OneRvenuAnalist.as_view(), name='one-day-revenue'),
+    path('one-week-revenue/', views.OneWeekRvenuAnalist.as_view(), name='one-week-revenue'),
+    path('one-month-revenue/', views.OneMonthRvenuAnalist.as_view(), name='one-month-revenue'),
+    path('three-month-revenue/', views.ThreeMonthRvenuAnalist.as_view(), name='three-month-revenue'),
+    path('six-month-revenue/', views.SixMonthRvenuAnalist.as_view(), name='six-month-revenue'),
+    path('one-year-revenue/', views.OneYearRevenueAnalist.as_view(), name='one-year-revenue'),
     
 
 
