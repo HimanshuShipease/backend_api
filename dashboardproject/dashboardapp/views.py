@@ -231,12 +231,16 @@ class PopularSKUs(APIView):
 #########start Rto section here #############
 
 class CalculateRto(APIView):
-     def get(self, request, format=None):
+    def get(self, request, format=None):
         # Count total RTO orders
+        desired_statuses = ['delivered', 'in_transit', 'rto_initiated']
         total_rto_count = Orders.objects.filter(rto_status='y').count()
 
         # Get status-wise counts for RTO orders
-        status_wise_counts = Orders.objects.filter(rto_status='y').values('status').annotate(
+        status_wise_counts = Orders.objects.filter(
+            rto_status='y',
+            status__in=desired_statuses
+        ).values('status').annotate(
             status_count=Count('id')
         )
 
@@ -314,13 +318,18 @@ class TopRTOCity(APIView):
         top_rto_city_data = Orders.objects.filter(
             rto_status='y'
         ).values('p_city').annotate(
-            rto_count=Count('id')
+            rto_count=Count('rto_status'),
         ).order_by('-rto_count')[:10]
+
+        # Calculate the total RTO count
+        total_rto_count = Orders.objects.filter(rto_status='y').count()
+
         # Prepare the response data
         response_data = [
             {
                 'city': data['p_city'],
                 'rto_count': data['rto_count'],
+                'rto_count_percentage': round((data['rto_count'] / total_rto_count) * 100) if total_rto_count else 0,
             }
             for data in top_rto_city_data
         ]
@@ -896,12 +905,17 @@ class ShipmentOverviewByCourier(APIView):
 ### Api for status wise graph
 class StatusWiseGraph(APIView):
     def get(self, request, format=None):
+        # Specify the list of desired statuses
+        desired_statuses = ['delivered', 'in_transit', 'ndr', 'out_for_delivery', 'picked_up', 'shipped']
+
         # Get total count for all channels
         total_count = Orders.objects.count()
-        # Get channel-wise data
-        channel_data = Orders.objects.values('status').annotate(
+
+        # Get channel-wise data for the desired statuses
+        channel_data = Orders.objects.filter(status__in=desired_statuses).values('status').annotate(
             total_orders=Count('id')
         )
+
         # Calculate percentage for each channel
         channel_percentage_data = [
             {
@@ -911,6 +925,7 @@ class StatusWiseGraph(APIView):
             }
             for channel in channel_data
         ]
+
         return Response(channel_percentage_data)
 
 # Api for total customer
@@ -1220,7 +1235,7 @@ class OneRvenuAnalist(APIView):
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         response_data = {
-            'today_revenue': total_revenue,
+            'data_count': total_revenue,
         }
         yesterday_revenue = Orders.objects.filter(
             inserted__date=yesterday
@@ -1228,81 +1243,80 @@ class OneRvenuAnalist(APIView):
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         response_data = {
-            'today_revenue': total_revenue, 
+            'data_count': total_revenue, 
             'yesterday_revenue':yesterday_revenue
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
 class OneWeekRvenuAnalist(APIView):
   def get(self, request, format=None):
-        today = timezone.now().date()
-        yesterday = today - timezone.timedelta(days=7)
-       
+        # today = timezone.now().date()
+        one_year_ago = timezone.now() - timezone.timedelta(days=7) 
         one_week = Orders.objects.filter(
-            inserted__date=yesterday
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         response_data = {
            
-            'one_week':one_week
+            'data_count':one_week
         }
         return Response(response_data, status=status.HTTP_200_OK) 
 
 class OneMonthRvenuAnalist(APIView):
   def get(self, request, format=None):
-        today = timezone.now().date()
-        yesterday = today - timezone.timedelta(days=30)
-        one_month_revenue = Orders.objects.filter(
-            inserted__date=yesterday
-        ).aggregate(
+       today = timezone.now().date()
+       lastthirtry_ago = timezone.now() - timezone.timedelta(days=30) 
+       one_month_revenue = Orders.objects.filter(
+            inserted__date=lastthirtry_ago
+       ).aggregate(
             total_sum=Sum('invoice_amount')
-        )['total_sum'] or 0
-        response_data = {
+       )['total_sum'] or 0
+       response_data = {
     
-            'one_month_revenue':one_month_revenue
+        'data_count':one_month_revenue
         }
-        return Response(response_data, status=status.HTTP_200_OK)
+       return Response(response_data, status=status.HTTP_200_OK)
 
 
 class ThreeMonthRvenuAnalist(APIView):
-  def get(self, request, format=None):
-        today = timezone.now().date()
-        yesterday = today - timezone.timedelta(days=90)
+    def get(self, request, format=None):
+        day = timezone.now() - timezone.timedelta(days=90) 
         three_month = Orders.objects.filter(
-            inserted__date=yesterday
+            inserted__date=day
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
+
         response_data = {
-            'three_month':three_month
+            'data_count': three_month
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
 
 class SixMonthRvenuAnalist(APIView):
   def get(self, request, format=None):
-        yesterday = today - timezone.timedelta(days=180)
+        day = timezone.now() - timezone.timedelta(days=180) 
         six_month = Orders.objects.filter(
-            inserted__date=yesterday
+            inserted__date=day
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         response_data = {
-            'six_month':six_month
+            'data_count':six_month
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
 #one year revue analist count
 class OneYearRevenueAnalist(APIView):
   def get(self, request, format=None):
-        yesterday = today - timezone.timedelta(days=365)
+        day = timezone.now() - timezone.timedelta(days=365) 
         one_year = Orders.objects.filter(
-            inserted__date=yesterday
+            inserted__date=day
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         response_data = {
-            'one_year':one_year
+            'data_count':one_year
         }
         return Response(response_data, status=status.HTTP_200_OK)                                                                            
