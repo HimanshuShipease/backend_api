@@ -100,7 +100,7 @@ DATABASES = {
         'NAME': 'shipease',
         'USER': 'root',
         'PASSWORD': 'Ship@Ease$2001',
-        'HOST': 'localhost',
+        'HOST': '35.154.133.14',
         'PORT': '3306',
     }
 }
