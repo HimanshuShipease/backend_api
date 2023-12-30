@@ -4,6 +4,7 @@ from dashboardapp import views
 # 
 urlpatterns = [
     ########### start Api for order dashboard########
+    
     path('p-sidebar/', views.Psidebarlist.as_view()),
     path('totalorder/', views.Totalorderscount.as_view()),
     path('totalcancelorder/', views.TotalCancelOrderCount.as_view()),
@@ -28,8 +29,8 @@ urlpatterns = [
     #### end api for rto section here   ################
     ##### start NDR section here ############# CalculateOrderDelay
     path('total-ndr/', views.CalculateTotalNdr.as_view(), name='total-ndr'),
-    path('total-required-ndr/', views.CalculateTotalNdr.as_view(), name='total-required-ndr'),
-    path('total-requested-ndr/', views.CalculateTotalNdr.as_view(), name='total-requested-ndr'),             
+    path('total-required-ndr/', views.TotalRequiredNdr.as_view(), name='total-required-ndr'),
+    path('total-requested-ndr/', views.TotalRewuestedNdr.as_view(), name='total-requested-ndr'),             
     path('total-deleverd-ndr/', views.TotalDeleverdNdr.as_view(), name='total-deleverd-ndr'),
     path('total-zone-wise-ndr/', views.TotalZonewiseCount.as_view(), name='total-zone-wise-ndr'),
     path('total-ndr-count/', views.TotalAllNdrCount.as_view(), name='total-ndr-count'),

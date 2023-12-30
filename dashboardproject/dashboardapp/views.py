@@ -16,7 +16,7 @@ from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.db.models.functions import ExtractMonth,TruncDay,TruncWeek,TruncMonth,Cast
+from django.db.models.functions import ExtractMonth,TruncDay,TruncWeek,TruncMonth,Cast,TruncDate
 from decimal import Decimal
 from django.utils import timezone
 
@@ -904,15 +904,21 @@ class ShipmentOverviewByCourier(APIView):
     ############# Over view section start  here#######################
 ### Api for status wise graph
 class StatusWiseGraph(APIView):
-    def get(self, request, format=None):
+   def get(self, request, format=None):
         # Specify the list of desired statuses
         desired_statuses = ['delivered', 'in_transit', 'ndr', 'out_for_delivery', 'picked_up', 'shipped']
 
-        # Get total count for all channels
-        total_count = Orders.objects.count()
+        # Calculate the date 30 days ago from today
+        thirty_days_ago = datetime.now() - timedelta(days=30)
 
-        # Get channel-wise data for the desired statuses
-        channel_data = Orders.objects.filter(status__in=desired_statuses).values('status').annotate(
+        # Get total count for all channels within the last 30 days
+        total_count = Orders.objects.filter(inserted__gte=thirty_days_ago).count()
+
+        # Get channel-wise data for the desired statuses within the last 30 days
+        channel_data = Orders.objects.filter(
+            status__in=desired_statuses,
+            inserted__gte=thirty_days_ago
+        ).values('status').annotate(
             total_orders=Count('id')
         )
 
@@ -931,61 +937,117 @@ class StatusWiseGraph(APIView):
 # Api for total customer
 class CalculateBestCustomer(APIView):
    def get(self, request, format=None):
-        # Calculate the date 30 days ago from today
+        # Calculate the date 30 and 60 days ago from today
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
-        total_customer=Orders.objects.values('b_customer_name').count()
-        top_customers = Orders.objects.filter(
+        sixty_days_ago = timezone.now() - timezone.timedelta(days=60)
+
+        # Get the total customer count for the last 30 days
+        total_customer_last_30_days = Orders.objects.filter(
+            inserted__gte=thirty_days_ago
+        ).values('b_customer_name').distinct().count()
+
+        # Get the total customer count for the previous 30 days
+        total_customer_previous_30_days = Orders.objects.filter(
+            inserted__gte=sixty_days_ago,
+            inserted__lt=thirty_days_ago
+        ).values('b_customer_name').distinct().count()
+
+        # Calculate the percentage increase in the last 30 days compared to the previous 30 days
+        # percentage_increase_last_30_days_vs_previous = 0
+        # if total_customer_previous_30_days > 0:
+        #     percentage_increase_last_30_days_vs_previous = (
+        #         (total_customer_last_30_days - total_customer_previous_30_days) / total_customer_previous_30_days
+        #     ) * 100
+
+        # Get the total customer count for the last 60 days
+        total_customer_last_60_days = Orders.objects.filter(
+            inserted__gte=sixty_days_ago
+        ).values('b_customer_name').distinct().count()
+
+        # Calculate the percentage increase in the last 30 days compared to the last 60 days
+        percentage_increase_last_30_days_vs_last_60_days = 0
+        if total_customer_last_60_days > 0:
+            percentage_increase_last_30_days_vs_last_60_days = (
+                (total_customer_last_30_days - total_customer_last_60_days) / total_customer_last_60_days
+            ) * 100
+
+        # Get the top customers for the last 30 days
+        top_customers_last_30_days = Orders.objects.filter(
             inserted__gte=thirty_days_ago
         ).values('b_customer_name').annotate(
             total_orders=Count('id')
-        ).filter(total_orders__gt=1).order_by('-total_orders')[:10]
-        top_customers_with_awb_count = []
-        for customer in top_customers:
+        ).filter(total_orders__gt=1).order_by('-total_orders')
+
+        top_customers_last_30_days_with_awb_count = []
+        for customer in top_customers_last_30_days:
             awb_count = Orders.objects.filter(
                 b_customer_name=customer['b_customer_name'],
                 inserted__gte=thirty_days_ago
             ).count()
-            top_customers_with_awb_count.append({
-                # 'customer_name': customer['b_customer_name'],
+            top_customers_last_30_days_with_awb_count.append({
+                'customer_name': customer['b_customer_name'],
                 'total_orders': customer['total_orders'],
                 'total_awb_count': awb_count,
             })
-        top_customer=len(top_customers_with_awb_count)
-        return Response({'top_customer':top_customer,'total_customer':total_customer}, status=status.HTTP_200_OK)
 
+        top_customer_last_30_days = len(top_customers_last_30_days_with_awb_count)
+
+        return Response({
+            'top_customer_last_30_days': top_customer_last_30_days,
+            'total_customer_last_30_days': total_customer_last_30_days,
+            'total_customer_last_60_days': total_customer_last_60_days,
+            # 'percentage_increase_last_30_days_vs_previous': round(percentage_increase_last_30_days_vs_previous, 2),
+            'percentage_increase_last_30_days_vs_last_60_days': round(percentage_increase_last_30_days_vs_last_60_days, 2)
+        }, status=status.HTTP_200_OK)
 # avarage selling price
 class AvrageSellingPrice(APIView):
    def get(self, request, format=None):
-    thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
-    average_invoice_amount = Orders.objects.filter(
-        inserted__gte=thirty_days_ago
-    ).aggregate(
-        average_invoice_amount=Avg('invoice_amount')
-        # total_orders=Count('id')
-    )
-    response_data = {
-        'average_invoice_amount': average_invoice_amount['average_invoice_amount'],
-        # 'total_orders': average_invoice_amount['total_orders'],
-    }
-    return Response(response_data, status=status.HTTP_200_OK)
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        average_invoice_amount = Orders.objects.filter(
+            inserted__gte=thirty_days_ago
+        ).aggregate(
+            average_invoice_amount=Avg('invoice_amount')
+        )
+        # Round the average_invoice_amount to one decimal place
+        rounded_average_invoice_amount = round(average_invoice_amount['average_invoice_amount'], 1)
+        
+        response_data = {
+            'average_invoice_amount': rounded_average_invoice_amount,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
 
 # daily shipment count
 class DailyShipment(APIView):
    def get(self, request, format=None):
-    thirty_days_ago = timezone.now() - timezone.timedelta(days=180)
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        
+        # Calculate the total shipment count for the last 30 days
+        total_shipment_count = Orders.objects.filter(
+            inserted__gte=thirty_days_ago,
+            awb_number__isnull=False
+        ).exclude(status__iexact='cancelled').count()
+        
+        # Calculate the total pending data count for the last 30 days
+        total_pending_data = Orders.objects.filter(
+            inserted__gte=thirty_days_ago,
+            status='pending'
+        ).exclude(status__iexact='cancelled').count()
 
-    # Calculate the total revenue for yesterday, excluding records with null awb_number and status 'cancelled'
-    daily_shipment = Orders.objects.filter(
-        inserted__gte=thirty_days_ago,
-        awb_number__isnull=False
-    ).exclude(status__iexact='cancelled').count()
+        # Calculate average shipment count per day for the last 30 days
+        average_shipment_per_day = Orders.objects.filter(
+            inserted__gte=thirty_days_ago,
+            awb_number__isnull=False
+        ).exclude(status__iexact='cancelled').annotate(
+            date=TruncDate('inserted')
+        ).values('date').annotate(
+            shipment_count=Count('awb_number')
+        ).aggregate(average_shipment=Avg('shipment_count'))['average_shipment']
 
-    total_pending_data = Orders.objects.filter(
-        inserted__gte=thirty_days_ago,
-        status='pending'
-    ).exclude(status__iexact='cancelled').count()
-
-    return Response({'daily_shipment': daily_shipment, 'total_pending_data': total_pending_data}, status=status.HTTP_200_OK)
+        return Response({
+            'total_shipment_count': total_shipment_count,
+            'total_pending_data': total_pending_data,
+            'average_shipment_per_day': average_shipment_per_day,
+        }, status=status.HTTP_200_OK)
 
 #Api for today revenue count
 class TodayRevenueCount(APIView):
@@ -1076,8 +1138,7 @@ class LateDeleveryPrefrence(APIView):
 class LastThirtyDayData(APIView):
     def get(self, request, format=None):
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
-        print("@@@@@@@@@@@",thirty_days_ago)
-        snippets = Orders.objects.filter(inserted__gte=thirty_days_ago)
+        snippets = Orders.objects.filter(inserted__gte=thirty_days_ago)[:20]
         serializer = LastthirtyDaySerializer(snippets, many=True)
         return Response(serializer.data)
 
@@ -1110,6 +1171,7 @@ class TopCouriarPathner(APIView):
 class TopCustomerApi(APIView):
    def get(self, request, format=None):
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        sixty_days_ago = timezone.now() - timezone.timedelta(days=60)
         # Get the top 10 customers based on the number of bookings
         top_customers = Orders.objects.filter(
             inserted__gte=thirty_days_ago
@@ -1161,25 +1223,18 @@ class TopProductStateWise(APIView):
     def get(self, request, format=None):
         # Get the top product SKUs based on order count
         state_wise_top_product = Orders.objects.exclude(status__iexact='cancelled').values('b_state').annotate(
-            order_count=Count('id'),
-            sum_order=Sum('id')
+            order_count=Count('id')
         ).order_by('-order_count')[:10]
-        total_sum_order = Orders.objects.exclude(status__iexact='cancelled').aggregate(sum_order=Sum('id'))['sum_order']
-        # sum_product = Orders.objects.exclude(status__iexact='cancelled').values('b_state').annotate(
-        #     order_count=Count('id'),
-        #     sum_order=Sum('order_count')
-        # )[:10]
+        # Calculate the total sum of order_count for state_wise_top_product
+        total_sum_order = sum(product['order_count'] for product in state_wise_top_product)
         top_product_data = [
             {
                 'b_state': product['b_state'],
                 'order_count': product['order_count'],
-             
             }
             for product in state_wise_top_product
         ]
-        # return Response(top_product_data)
         return Response({'top_product_data': top_product_data, 'total_sum_order': total_sum_order}, status=status.HTTP_200_OK)
-
 class OrderPlaced(APIView):
     def get(self, request, format=None):
         one_year_ago = timezone.now() - timezone.timedelta(days=365)
@@ -1250,18 +1305,20 @@ class OneRvenuAnalist(APIView):
 
 class OneWeekRvenuAnalist(APIView):
   def get(self, request, format=None):
-        # today = timezone.now().date()
         one_year_ago = timezone.now() - timezone.timedelta(days=7) 
         one_week = Orders.objects.filter(
             inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
+        
+        # Round the value to 1 decimal place
+        rounded_one_week = round(one_week)
+        
         response_data = {
-           
-            'data_count':one_week
+            'data_count': rounded_one_week
         }
-        return Response(response_data, status=status.HTTP_200_OK) 
+        return Response(response_data, status=status.HTTP_200_OK)
 
 class OneMonthRvenuAnalist(APIView):
   def get(self, request, format=None):
@@ -1272,9 +1329,9 @@ class OneMonthRvenuAnalist(APIView):
        ).aggregate(
             total_sum=Sum('invoice_amount')
        )['total_sum'] or 0
+       rounded_one_week = round(one_month_revenue)
        response_data = {
-    
-        'data_count':one_month_revenue
+        'data_count':rounded_one_week
         }
        return Response(response_data, status=status.HTTP_200_OK)
 
@@ -1287,9 +1344,10 @@ class ThreeMonthRvenuAnalist(APIView):
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
+        rounded_three_week = round(three_month)
 
         response_data = {
-            'data_count': three_month
+            'data_count': rounded_three_week
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -1302,8 +1360,9 @@ class SixMonthRvenuAnalist(APIView):
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
+        rounded_six_minth = round(six_month)
         response_data = {
-            'data_count':six_month
+            'data_count':rounded_six_minth
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -1316,7 +1375,8 @@ class OneYearRevenueAnalist(APIView):
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
+        rounded_one_year = round(one_year)
         response_data = {
-            'data_count':one_year
+            'data_count':rounded_one_year
         }
         return Response(response_data, status=status.HTTP_200_OK)                                                                            

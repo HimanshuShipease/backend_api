@@ -97,14 +97,14 @@ pymysql.install_as_MySQLdb()
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'shipease',
+        'NAME': 'shipease_latest',
         'USER': 'root',
-        'PASSWORD': 'Ship@Ease$2001',
-        'HOST': '35.154.133.14',
+        'PASSWORD': '',
+        'HOST': 'localhost',
         'PORT': '3306',
     }
 }
-
+######add git ignore file
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 
