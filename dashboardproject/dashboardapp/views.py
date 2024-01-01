@@ -907,13 +907,12 @@ class StatusWiseGraph(APIView):
    def get(self, request, format=None):
         # Specify the list of desired statuses
         desired_statuses = ['delivered', 'in_transit', 'ndr', 'out_for_delivery', 'picked_up', 'shipped']
-
         # Calculate the date 30 days ago from today
         thirty_days_ago = datetime.now() - timedelta(days=30)
-
         # Get total count for all channels within the last 30 days
         total_count = Orders.objects.filter(inserted__gte=thirty_days_ago).count()
-
+        total_status_wise_count=Orders.objects.filter(inserted__gte=thirty_days_ago,
+        status__in=desired_statuses).count()
         # Get channel-wise data for the desired statuses within the last 30 days
         channel_data = Orders.objects.filter(
             status__in=desired_statuses,
@@ -921,7 +920,6 @@ class StatusWiseGraph(APIView):
         ).values('status').annotate(
             total_orders=Count('id')
         )
-
         # Calculate percentage for each channel
         channel_percentage_data = [
             {
@@ -931,9 +929,7 @@ class StatusWiseGraph(APIView):
             }
             for channel in channel_data
         ]
-
-        return Response(channel_percentage_data)
-
+        return Response({'channel_percentage_data': channel_percentage_data, 'total_status_wise_count': total_status_wise_count}, status=status.HTTP_200_OK)
 # Api for total customer
 class CalculateBestCustomer(APIView):
    def get(self, request, format=None):
@@ -1013,6 +1009,8 @@ class AvrageSellingPrice(APIView):
 class DailyShipment(APIView):
    def get(self, request, format=None):
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        sixty_days_ago = timezone.now() - timezone.timedelta(days=60)
+
         
         # Calculate the total shipment count for the last 30 days
         total_shipment_count = Orders.objects.filter(
