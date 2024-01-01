@@ -104,7 +104,7 @@ DATABASES = {
         'PORT': '3306',
     }
 }
-######add change setting for git###########1111
+######add change setting for git###########1111 3333
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 
