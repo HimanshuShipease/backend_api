@@ -952,14 +952,7 @@ class CalculateBestCustomer(APIView):
             inserted__lt=thirty_days_ago
         ).values('b_customer_name').distinct().count()
 
-        # Calculate the percentage increase in the last 30 days compared to the previous 30 days
-        # percentage_increase_last_30_days_vs_previous = 0
-        # if total_customer_previous_30_days > 0:
-        #     percentage_increase_last_30_days_vs_previous = (
-        #         (total_customer_last_30_days - total_customer_previous_30_days) / total_customer_previous_30_days
-        #     ) * 100
 
-        # Get the total customer count for the last 60 days
         total_customer_last_60_days = Orders.objects.filter(
             inserted__gte=sixty_days_ago
         ).values('b_customer_name').distinct().count()
