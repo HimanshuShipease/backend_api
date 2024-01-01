@@ -94,16 +94,29 @@ WSGI_APPLICATION = 'dashboardproject.wsgi.application'
 import pymysql
 
 pymysql.install_as_MySQLdb()
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'shipease_latest',
+#         'USER': 'root',
+#         'PASSWORD': '',
+#         'HOST': 'localhost',
+#         'PORT': '3306',
+#     }
+# }
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'shipease_latest',
-        'USER': 'root',
-        'PASSWORD': '',
+        'USER': 'shipease',
+        'PASSWORD': 'Ship@Ease$2001',
         'HOST': 'localhost',
         'PORT': '3306',
     }
 }
+
 ######add change setting for git###########1111 33
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
