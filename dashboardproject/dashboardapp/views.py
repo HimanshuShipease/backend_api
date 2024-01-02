@@ -990,16 +990,36 @@ class CalculateBestCustomer(APIView):
 class AvrageSellingPrice(APIView):
    def get(self, request, format=None):
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
-        average_invoice_amount = Orders.objects.filter(
+        sixty_days_ago = timezone.now() - timezone.timedelta(days=60)
+
+        # Calculate the average invoice amount for the last 30 days
+        average_invoice_amount_30_days = Orders.objects.filter(
             inserted__gte=thirty_days_ago
         ).aggregate(
             average_invoice_amount=Avg('invoice_amount')
-        )
+        )['average_invoice_amount'] or 0
+
+        # Calculate the average invoice amount for the last 60 days
+        average_invoice_amount_60_days = Orders.objects.filter(
+            inserted__gte=sixty_days_ago,
+            inserted__lt=thirty_days_ago
+        ).aggregate(
+            average_invoice_amount=Avg('invoice_amount')
+        )['average_invoice_amount'] or 0
+
+        # Calculate the percentage change
+        percentage_change = 0
+        if average_invoice_amount_60_days != 0:
+            percentage_change = round((average_invoice_amount_30_days - average_invoice_amount_60_days) / average_invoice_amount_60_days) * 100
         # Round the average_invoice_amount to one decimal place
-        rounded_average_invoice_amount = round(average_invoice_amount['average_invoice_amount'], 1)
-        
+        rounded_average_invoice_amount_30_days = round(average_invoice_amount_30_days)
+        rounded_average_invoice_amount_60_days = round(average_invoice_amount_60_days)
+        rounded_percentage_change = round(percentage_change, 2)
+
         response_data = {
-            'average_invoice_amount': rounded_average_invoice_amount,
+            'average_invoice_amount_30_days': rounded_average_invoice_amount_30_days,
+            'average_invoice_amount_60_days': rounded_average_invoice_amount_60_days,
+            'percentage_change': percentage_change,
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -1031,7 +1051,6 @@ class DailyShipment(APIView):
         ).values('date').annotate(
             shipment_count=Count('awb_number')
         ).aggregate(average_shipment=Avg('shipment_count'))['average_shipment']
-
         return Response({
             'total_shipment_count': total_shipment_count,
             'total_pending_data': total_pending_data,
@@ -1043,23 +1062,31 @@ class TodayRevenueCount(APIView):
   def get(self, request, format=None):
         today = timezone.now().date()
         yesterday = today - timezone.timedelta(days=1)
-        total_revenue = Orders.objects.filter(
+        # Calculate today's revenue
+        today_revenue = Orders.objects.filter(
             inserted__date=today
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
-        response_data = {
-            'today_revenue': total_revenue,
-        }
+
+        # Calculate yesterday's revenue
         yesterday_revenue = Orders.objects.filter(
             inserted__date=yesterday
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
+
+        # Calculate the percentage change
+        percentage_change = 0
+        if yesterday_revenue != 0:
+            percentage_change = ((today_revenue - yesterday_revenue) / yesterday_revenue) * 100
+
         response_data = {
-            'today_revenue': total_revenue,
-            'yesterday_revenue':yesterday_revenue
+            'today_revenue': today_revenue,
+            'yesterday_revenue': yesterday_revenue,
+            'percentage_change': percentage_change,
         }
+
         return Response(response_data, status=status.HTTP_200_OK)
 
 #Api for Count On time delevery 
@@ -1099,7 +1126,6 @@ class LateDeleveryPrefrence(APIView):
     def get_count_for_period(self, days_delta):
         today = timezone.now().date()
         start_date = today - timedelta(days=days_delta)
-        
         return Orders.objects.filter(
             inserted__date__range=[start_date, today],
             # status='delivered',  # Adjust based on your actual status values
@@ -1272,100 +1298,221 @@ class WeightDisputed(APIView):
 class OneRvenuAnalist(APIView):
   def get(self, request, format=None):
         today = timezone.now().date()
-        yesterday = today - timezone.timedelta(days=1)
+        # yesterday = today - timezone.timedelta(days=3)
         total_revenue = Orders.objects.filter(
             inserted__date=today
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
-        response_data = {
-            'data_count': total_revenue,
-        }
-        yesterday_revenue = Orders.objects.filter(
-            inserted__date=yesterday
+        total_revenue_data = round(total_revenue)
+        prepaid_revenue = Orders.objects.filter(
+            inserted__date=today,
+            order_type='prepaid'
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
+        prepade_revenue = Orders.objects.filter(
+            inserted__date=today,
+            order_type='prepaid'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        prepade_revenue_data=round(prepade_revenue)
+        cod_revenue = Orders.objects.filter(
+            inserted__date=today,
+            order_type='cod'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        cod_revenue_data=round(cod_revenue)
         response_data = {
-            'data_count': total_revenue, 
-            'yesterday_revenue':yesterday_revenue
+            'total_revenue_data': total_revenue_data, 
+            'prepade_revenue_data':prepade_revenue_data,
+            'cod_revenue_data':cod_revenue_data
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
 class OneWeekRvenuAnalist(APIView):
   def get(self, request, format=None):
         one_year_ago = timezone.now() - timezone.timedelta(days=7) 
-        one_week = Orders.objects.filter(
+        total_revenue = Orders.objects.filter(
             inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         
         # Round the value to 1 decimal place
-        rounded_one_week = round(one_week)
-        
+        total_revenue_data = round(total_revenue)
+
+        prepade_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='prepaid'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+
+        prepade_revenue_data=round(prepade_revenue)
+
+        cod_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='cod'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        cod_revenue_data=round(cod_revenue)
         response_data = {
-            'data_count': rounded_one_week
+            'total_revenue_data': total_revenue_data,
+            'prepade_revenue_data':prepade_revenue_data,
+            'cod_revenue_data':cod_revenue_data
+
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
+
 class OneMonthRvenuAnalist(APIView):
   def get(self, request, format=None):
-       today = timezone.now().date()
-       lastthirtry_ago = timezone.now() - timezone.timedelta(days=30) 
-       one_month_revenue = Orders.objects.filter(
-            inserted__date=lastthirtry_ago
-       ).aggregate(
+        one_year_ago = timezone.now() - timezone.timedelta(days=30) 
+        total_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago
+        ).aggregate(
             total_sum=Sum('invoice_amount')
-       )['total_sum'] or 0
-       rounded_one_week = round(one_month_revenue)
-       response_data = {
-        'data_count':rounded_one_week
+        )['total_sum'] or 0
+        
+        # Round the value to 1 decimal place
+        total_revenue_data = round(total_revenue)
+
+        prepade_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='prepaid'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+
+        prepade_revenue_data=round(prepade_revenue)
+
+        cod_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='cod'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        cod_revenue_data=round(cod_revenue)
+        response_data = {
+            'total_revenue_data': total_revenue_data,
+            'prepade_revenue_data':prepade_revenue_data,
+            'cod_revenue_data':cod_revenue_data
+
         }
-       return Response(response_data, status=status.HTTP_200_OK)
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class ThreeMonthRvenuAnalist(APIView):
     def get(self, request, format=None):
-        day = timezone.now() - timezone.timedelta(days=90) 
-        three_month = Orders.objects.filter(
-            inserted__date=day
+        one_year_ago = timezone.now() - timezone.timedelta(days=90) 
+        total_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
-        rounded_three_week = round(three_month)
+        
+        # Round the value to 1 decimal place
+        total_revenue_data = round(total_revenue)
 
+        prepade_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='prepaid'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+
+        prepade_revenue_data=round(prepade_revenue)
+
+        cod_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='cod'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        cod_revenue_data=round(cod_revenue)
         response_data = {
-            'data_count': rounded_three_week
+            'total_revenue_data': total_revenue_data,
+            'prepade_revenue_data':prepade_revenue_data,
+            'cod_revenue_data':cod_revenue_data
+
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
 
 class SixMonthRvenuAnalist(APIView):
   def get(self, request, format=None):
-        day = timezone.now() - timezone.timedelta(days=180) 
-        six_month = Orders.objects.filter(
-            inserted__date=day
+        one_year_ago = timezone.now() - timezone.timedelta(days=180) 
+        total_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
-        rounded_six_minth = round(six_month)
+        
+        # Round the value to 1 decimal place
+        total_revenue_data = round(total_revenue)
+
+        prepade_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='prepaid'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+
+        prepade_revenue_data=round(prepade_revenue)
+
+        cod_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='cod'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        cod_revenue_data=round(cod_revenue)
         response_data = {
-            'data_count':rounded_six_minth
+            'total_revenue_data': total_revenue_data,
+            'prepade_revenue_data':prepade_revenue_data,
+            'cod_revenue_data':cod_revenue_data
+
         }
         return Response(response_data, status=status.HTTP_200_OK)
+
 
 #one year revue analist count
 class OneYearRevenueAnalist(APIView):
   def get(self, request, format=None):
-        day = timezone.now() - timezone.timedelta(days=365) 
-        one_year = Orders.objects.filter(
-            inserted__date=day
+        one_year_ago = timezone.now() - timezone.timedelta(days=365) 
+        total_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
-        rounded_one_year = round(one_year)
+        
+        # Round the value to 1 decimal place
+        total_revenue_data = round(total_revenue)
+
+        prepade_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='prepaid'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+
+        prepade_revenue_data=round(prepade_revenue)
+
+        cod_revenue = Orders.objects.filter(
+            inserted__date=one_year_ago,
+            order_type='cod'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
+        cod_revenue_data=round(cod_revenue)
         response_data = {
-            'data_count':rounded_one_year
+            'total_revenue_data': total_revenue_data,
+            'prepade_revenue_data':prepade_revenue_data,
+            'cod_revenue_data':cod_revenue_data
+
         }
-        return Response(response_data, status=status.HTTP_200_OK)                                                                            
+        return Response(response_data, status=status.HTTP_200_OK)
