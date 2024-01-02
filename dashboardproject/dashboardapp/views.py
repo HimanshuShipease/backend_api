@@ -947,8 +947,6 @@ class CalculateBestCustomer(APIView):
             inserted__gte=sixty_days_ago,
             inserted__lt=thirty_days_ago
         ).values('b_customer_name').distinct().count()
-
-
         total_customer_last_60_days = Orders.objects.filter(
             inserted__gte=sixty_days_ago
         ).values('b_customer_name').distinct().count()
