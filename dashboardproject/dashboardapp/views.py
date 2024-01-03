@@ -1,7 +1,23 @@
 from django.db import models
 
 from django.shortcuts import render
-from django.db.models import Case,Sum,Avg,When,Value,IntegerField,FloatField,Q,Count,Func,DateField,F,ExpressionWrapper,fields,ExpressionWrapper,BooleanField
+from django.db.models import (DecimalField,
+Case,
+Sum,
+Avg,
+When,
+Value,
+IntegerField,
+FloatField,
+Q,
+Count,
+Func,
+DateField,
+F,
+ExpressionWrapper,
+fields,
+BooleanField
+)
 from datetime import datetime, timedelta
 from django.db.models.expressions import RawSQL
 from dashboardapp.models import Parentsidebar,Orders,OrderTracking,NdrAttemps
@@ -19,6 +35,7 @@ from rest_framework import status
 from django.db.models.functions import ExtractMonth,TruncDay,TruncWeek,TruncMonth,Cast,TruncDate
 from decimal import Decimal
 from django.utils import timezone
+from decimal import Decimal
 
 
 ############### start order dashboard section here#################
@@ -103,39 +120,45 @@ class TotalCancelOrderGraph(APIView):
 
 class ChannalWiseGraph(APIView):
     def get(self, request, format=None):
-        # Get total count for all channels
-        total_count = Orders.objects.count()
-
-        # Get channel-wise data
-        channel_data = Orders.objects.values('channel').annotate(
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        total_count_last_30_days = Orders.objects.filter(inserted__gte=thirty_days_ago).exclude(channel__isnull=True).count()
+        channel_data_last_30_days = Orders.objects.filter(inserted__gte=thirty_days_ago).exclude(channel__isnull=True).values('channel').annotate(
             total_orders=Count('id')
-        )
-        # Calculate percentage for each channel
-        channel_percentage_data = [
+        ).order_by('-total_orders')[:10]  
+        channel_percentage_data_last_30_days = [
             {
                 'name': channel['channel'],
                 'total_count': channel['total_orders'],
-                'total_percentage': round((Decimal(channel['total_orders']) / Decimal(total_count)) * 100, 2),
+                'total_percentage': round((Decimal(channel['total_orders']) / Decimal(total_count_last_30_days)) * 100, 2),
             }
-            for channel in channel_data
+            for channel in channel_data_last_30_days
         ]
-        return Response(channel_percentage_data)
+        return Response({"channel_percentage_data_last_30_days":channel_percentage_data_last_30_days,
+        "total_count_last_30_days":total_count_last_30_days},
+        status=status.HTTP_200_OK)
+
+
 # api count state wise data
 class StateWiseData(APIView):
     def get(self, request, format=None):
+        # Calculate total order count
         total_count = Orders.objects.count()
         p_state_data = Orders.objects.values('p_state').annotate(
-            total_orders=Count('id')
-        )
+            total_orders=Count('id'),
+            total_percentage=ExpressionWrapper(
+                (F('total_orders') / total_count) * 100,
+                output_field=DecimalField()
+            )
+        ).order_by('-total_orders')[:10]  
         p_state_percentage_data = [
             {
                 'p_state': p_state['p_state'],
                 'total_orders': p_state['total_orders'],
-                'total_percentage': round((Decimal(p_state['total_orders']) / Decimal(total_count)) * 100, 2),
+                'total_percentage': round(p_state['total_percentage'], 2),
             }
             for p_state in p_state_data
         ]
-        return Response(p_state_percentage_data)
+        return Response(p_state_percentage_data,status=status.HTTP_200_OK)
 
 #Api for count Domestic and International order type
 class CountOrderType(APIView):
