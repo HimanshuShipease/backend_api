@@ -26,8 +26,7 @@ LastthirtyDaySerializer,
 OrderTrackingSerializer,
 ChannelWiseOrderSerializer,
 ZoneWiseNdrOrdersSerializer,
-StateWiseSellCountSerializer,
-FetchAllOrdersSerializer
+StateWiseSellCountSerializer
 )
 from django.http import Http404
 from rest_framework.views import APIView
@@ -38,7 +37,6 @@ from decimal import Decimal
 from django.utils import timezone
 from decimal import Decimal
 
-global_seller_id=16
 
 ############### start order dashboard section here#################
 class Psidebarlist(APIView):
@@ -144,9 +142,8 @@ class ChannalWiseGraph(APIView):
 class StateWiseData(APIView):
     def get(self, request, format=None):
         # Calculate total order count
-        global_seller_id=16
-        total_count = Orders.objects.filter(seller_id=global_seller_id).count()
-        p_state_data = Orders.objects.filter(seller_id=global_seller_id).values('p_state').annotate(
+        total_count = Orders.objects.count()
+        p_state_data = Orders.objects.values('p_state').annotate(
             total_orders=Count('id'),
             total_percentage=ExpressionWrapper(
                 (F('total_orders') / total_count) * 100,
@@ -965,34 +962,49 @@ class StatusWiseGraph(APIView):
 # Api for total customer
 class CalculateBestCustomer(APIView):
    def get(self, request, format=None):
+        # Calculate the date 30 and 60 days ago from today
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
         sixty_days_ago = timezone.now() - timezone.timedelta(days=60)
 
-        # Get customer counts
-        total_customer_last_30_days = self.get_customer_count(thirty_days_ago)
-        total_customer_last_60_days = self.get_customer_count(sixty_days_ago)
+        # Get the total customer count for the last 30 days
+        total_customer_last_30_days = Orders.objects.filter(
+            inserted__gte=thirty_days_ago
+        ).values('b_customer_name').distinct().count()
 
-        # Calculate percentage increase
-        percentage_increase_last_30_days_vs_last_60_days = self.calculate_percentage_increase(
-            total_customer_last_30_days, total_customer_last_60_days
-        )
+        # Get the total customer count for the previous 30 days
+        total_customer_previous_30_days = Orders.objects.filter(
+            inserted__gte=sixty_days_ago,
+            inserted__lt=thirty_days_ago
+        ).values('b_customer_name').distinct().count()
+        total_customer_last_60_days = Orders.objects.filter(
+            inserted__gte=sixty_days_ago
+        ).values('b_customer_name').distinct().count()
 
-        # Get top customers
-        top_customers_last_30_days = self.get_top_customers(thirty_days_ago)
+        # Calculate the percentage increase in the last 30 days compared to the last 60 days
+        percentage_increase_last_30_days_vs_last_60_days = 0
+        if total_customer_last_60_days > 0:
+            percentage_increase_last_30_days_vs_last_60_days = (
+                (total_customer_last_30_days - total_customer_last_60_days) / total_customer_last_60_days
+            ) * 100
 
-        # Get additional details for top customers
-        top_customers_last_30_days_with_awb_count = [
-            {
-                's_contact': customer['s_contact'],
+        # Get the top customers for the last 30 days
+        top_customers_last_30_days = Orders.objects.filter(
+            inserted__gte=thirty_days_ago
+        ).values('b_customer_name').annotate(
+            total_orders=Count('id')
+        ).filter(total_orders__gt=1).order_by('-total_orders')
+
+        top_customers_last_30_days_with_awb_count = []
+        for customer in top_customers_last_30_days:
+            awb_count = Orders.objects.filter(
+                b_customer_name=customer['b_customer_name'],
+                inserted__gte=thirty_days_ago
+            ).count()
+            top_customers_last_30_days_with_awb_count.append({
+                'customer_name': customer['b_customer_name'],
                 'total_orders': customer['total_orders'],
-                'total_awb_count': Orders.objects.filter(
-                    # seller_id=global_seller_id,
-                    b_customer_name=customer['s_contact'],
-                    inserted__gte=thirty_days_ago
-                ).count()
-            }
-            for customer in top_customers_last_30_days
-        ]
+                'total_awb_count': awb_count,
+            })
 
         top_customer_last_30_days = len(top_customers_last_30_days_with_awb_count)
 
@@ -1000,26 +1012,9 @@ class CalculateBestCustomer(APIView):
             'top_customer_last_30_days': top_customer_last_30_days,
             'total_customer_last_30_days': total_customer_last_30_days,
             'total_customer_last_60_days': total_customer_last_60_days,
+            # 'percentage_increase_last_30_days_vs_previous': round(percentage_increase_last_30_days_vs_previous, 2),
             'percentage_increase_last_30_days_vs_last_60_days': round(percentage_increase_last_30_days_vs_last_60_days, 2)
         }, status=status.HTTP_200_OK)
-
-   def get_customer_count(self, date_filter):
-      return Orders.objects.filter(
-            # seller_id=global_seller_id,
-            inserted__gte=date_filter
-      ).values('s_contact').distinct().count()
-
-   def calculate_percentage_increase(self, current_value, previous_value):
-      return (current_value - previous_value) / previous_value * 100 if previous_value > 0 else 0
-
-   def get_top_customers(self, date_filter):
-      return Orders.objects.filter(
-            # seller_id=global_seller_id,
-         inserted__gte=date_filter
-         ).values('s_contact').annotate(
-            total_orders=Count('id')
-         ).filter(total_orders__gt=1).order_by('-total_orders')[:10]
-        
 # avarage selling price
 class AvrageSellingPrice(APIView):
    def get(self, request, format=None):
@@ -1334,21 +1329,26 @@ class OneRvenuAnalist(APIView):
         today = timezone.now().date()
         # yesterday = today - timezone.timedelta(days=3)
         total_revenue = Orders.objects.filter(
-            inserted__gte=today
+            inserted__date=today
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         total_revenue_data = round(total_revenue)
-
+        prepaid_revenue = Orders.objects.filter(
+            inserted__date=today,
+            order_type='prepaid'
+        ).aggregate(
+            total_sum=Sum('invoice_amount')
+        )['total_sum'] or 0
         prepade_revenue = Orders.objects.filter(
-            inserted__gte=today,
+            inserted__date=today,
             order_type='prepaid'
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         prepade_revenue_data=round(prepade_revenue)
         cod_revenue = Orders.objects.filter(
-            inserted__gte=today,
+            inserted__date=today,
             order_type='cod'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1361,15 +1361,11 @@ class OneRvenuAnalist(APIView):
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
-
-
-
-#######
 class OneWeekRvenuAnalist(APIView):
   def get(self, request, format=None):
         one_year_ago = timezone.now() - timezone.timedelta(days=7) 
         total_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
@@ -1378,7 +1374,7 @@ class OneWeekRvenuAnalist(APIView):
         total_revenue_data = round(total_revenue)
 
         prepade_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='prepaid'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1387,7 +1383,7 @@ class OneWeekRvenuAnalist(APIView):
         prepade_revenue_data=round(prepade_revenue)
 
         cod_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='cod'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1406,7 +1402,7 @@ class OneMonthRvenuAnalist(APIView):
   def get(self, request, format=None):
         one_year_ago = timezone.now() - timezone.timedelta(days=30) 
         total_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
@@ -1415,7 +1411,7 @@ class OneMonthRvenuAnalist(APIView):
         total_revenue_data = round(total_revenue)
 
         prepade_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='prepaid'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1424,7 +1420,7 @@ class OneMonthRvenuAnalist(APIView):
         prepade_revenue_data=round(prepade_revenue)
 
         cod_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='cod'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1443,7 +1439,7 @@ class ThreeMonthRvenuAnalist(APIView):
     def get(self, request, format=None):
         one_year_ago = timezone.now() - timezone.timedelta(days=90) 
         total_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
@@ -1452,7 +1448,7 @@ class ThreeMonthRvenuAnalist(APIView):
         total_revenue_data = round(total_revenue)
 
         prepade_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='prepaid'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1461,7 +1457,7 @@ class ThreeMonthRvenuAnalist(APIView):
         prepade_revenue_data=round(prepade_revenue)
 
         cod_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='cod'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1480,7 +1476,7 @@ class SixMonthRvenuAnalist(APIView):
   def get(self, request, format=None):
         one_year_ago = timezone.now() - timezone.timedelta(days=180) 
         total_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
@@ -1489,7 +1485,7 @@ class SixMonthRvenuAnalist(APIView):
         total_revenue_data = round(total_revenue)
 
         prepade_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='prepaid'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1498,7 +1494,7 @@ class SixMonthRvenuAnalist(APIView):
         prepade_revenue_data=round(prepade_revenue)
 
         cod_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='cod'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1518,15 +1514,16 @@ class OneYearRevenueAnalist(APIView):
   def get(self, request, format=None):
         one_year_ago = timezone.now() - timezone.timedelta(days=365) 
         total_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago
+            inserted__date=one_year_ago
         ).aggregate(
             total_sum=Sum('invoice_amount')
         )['total_sum'] or 0
         
         # Round the value to 1 decimal place
         total_revenue_data = round(total_revenue)
+
         prepade_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='prepaid'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1535,7 +1532,7 @@ class OneYearRevenueAnalist(APIView):
         prepade_revenue_data=round(prepade_revenue)
 
         cod_revenue = Orders.objects.filter(
-            inserted__gte=one_year_ago,
+            inserted__date=one_year_ago,
             order_type='cod'
         ).aggregate(
             total_sum=Sum('invoice_amount')
@@ -1548,36 +1545,3 @@ class OneYearRevenueAnalist(APIView):
 
         }
         return Response(response_data, status=status.HTTP_200_OK)
-
-############### end dashboard section here##############        
-
-######################### Orders setail section start here###########
-# fetch all order
-from django.http import Http404
-
-class FetchAllOrdersDetail(APIView):
-    def get(self, request, format=None):
-        try:
-            set_date = timezone.now() - timezone.timedelta(days=30)
-            snippets = Orders.objects.filter(seller_id=global_seller_id, inserted__date=set_date)
-            serializer = FetchAllOrdersSerializer(snippets, many=True)
-            return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class FetchAllOrdersDetailById(APIView):
-    def get_object(self, pk):
-        try:
-            return Orders.objects.get(pk=pk)
-        except Orders.DoesNotExist:
-            raise Http404("Order not found")
-
-    def get(self, request, pk, format=None):
-        try:
-            snippet = self.get_object(pk)
-            serializer = FetchAllOrdersSerializer(snippet)
-            return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
-        except Http404 as e:
-            return Response({'success': False, 'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

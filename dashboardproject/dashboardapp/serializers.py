@@ -53,3 +53,13 @@ class StateWiseSellCountSerializer(serializers.ModelSerializer):
     class Meta:
         model = Orders
         fields=['b_state','order_count']
+
+
+ ################## end dashboard section here##########
+
+ ############### start orders sections here ############
+
+class FetchAllOrdersSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Orders
+        fields='__all__'        

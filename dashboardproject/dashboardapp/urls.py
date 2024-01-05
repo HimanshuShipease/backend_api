@@ -38,7 +38,7 @@ urlpatterns = [
     path('ndr-reason-split/', views.NdrReasonSplitCount.as_view(), name='ndr-reason-split'),
     path('ndr-responce-count/', views.NdrAttemptsByResponce.as_view(), name='ndr-responce-count'),
     path('total-ndr-attempt/', views.TotalNdrAttempts.as_view(), name='total-ndr-attempt'),
-    path('total-ndr-delevery-attempt/', views.NdrTotalDelevryAttempt.as_view(), name='total-ndr-delevery-attempt/'),
+    path('total-ndr-delevery-attempt/', views.NdrTotalDelevryAttempt.as_view(), name='total-ndr-delevery-attempt'),
 
     ##### end NDR section here ############# CalculateOrderDelay
 
@@ -65,7 +65,7 @@ urlpatterns = [
 
     path('status-wise-graph/', views.StatusWiseGraph.as_view(), name='status-wise-graph'),
     path('top-customer/', views.CalculateBestCustomer.as_view(), name='top-customer'),
-    path('avg-sellingprice/', views.AvrageSellingPrice.as_view(), name='avg-sellingprice'),
+    path('avg-sellingprice/', views.AvrageSellingPrice.as_view(), name='avg-sellingStatusWiseGraphprice'),
     path('daly-shipment/', views.DailyShipment.as_view(), name='daly-shipment'),
     path('today-revenue/', views.TodayRevenueCount.as_view(), name='today-revenue'),
     path('daily-prefrences/', views.DailyPrefrence.as_view(), name='daily-prefrences'),
@@ -84,7 +84,10 @@ urlpatterns = [
     path('three-month-revenue/', views.ThreeMonthRvenuAnalist.as_view(), name='three-month-revenue'),
     path('six-month-revenue/', views.SixMonthRvenuAnalist.as_view(), name='six-month-revenue'),
     path('one-year-revenue/', views.OneYearRevenueAnalist.as_view(), name='one-year-revenue'),
-    
 
+    ###############end dash board section here###################
+    ###########start orders section here######################
+    path('allorderdetail/', views.FetchAllOrdersDetail.as_view(), name='allorderdetail'),
+    path('allorderdetailid/<int:pk>/', views.FetchAllOrdersDetailById.as_view(), name='allorderdetailid'),
 
 ]
