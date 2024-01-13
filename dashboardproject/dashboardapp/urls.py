@@ -85,9 +85,19 @@ urlpatterns = [
     path('six-month-revenue/', views.SixMonthRvenuAnalist.as_view(), name='six-month-revenue'),
     path('one-year-revenue/', views.OneYearRevenueAnalist.as_view(), name='one-year-revenue'),
 
-    ###############end dash board section here###################
+    ###############end dash board section here################### ReturnOrder
     ###########start orders section here######################
-    path('allorderdetail/', views.FetchAllOrdersDetail.as_view(), name='allorderdetail'),
-    path('allorderdetailid/<int:pk>/', views.FetchAllOrdersDetailById.as_view(), name='allorderdetailid'),
+    # path('allorderdetail/', views.FetchAllOrdersDetail.as_view(), name='allorderdetail'),
+    # path('allorderdetailid/<int:pk>/', views.FetchAllOrdersDetailById.as_view(), name='allorderdetailid'),
+    # path('unprocessable/', views.UnprocessableOrder.as_view(), name='unprocessable'),
+    # path('processableorder/', views.ProcessableOrder.as_view(), name='processableorder'),
+    # path('pickedallorders/', views.ReadyToShipOrder.as_view(), name='pickedallorders'),
+    # path('returnallorder/', views.ReturnOrder.as_view(), name='returnallorder'),
+
+
+    ################# more on order start here #######################
+    path('pendingmoreonorder/', views.SplitOrder.as_view(), name='pendingmoreonorder'),  
+
+    
 
 ]

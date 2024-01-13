@@ -62,4 +62,13 @@ class StateWiseSellCountSerializer(serializers.ModelSerializer):
 class FetchAllOrdersSerializer(serializers.ModelSerializer):
     class Meta:
         model = Orders
+        fields='__all__'  
+
+
+class CreateOrdersSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Orders
         fields='__all__'        
+
+
+

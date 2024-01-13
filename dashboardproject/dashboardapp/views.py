@@ -27,7 +27,9 @@ OrderTrackingSerializer,
 ChannelWiseOrderSerializer,
 ZoneWiseNdrOrdersSerializer,
 StateWiseSellCountSerializer,
-FetchAllOrdersSerializer
+FetchAllOrdersSerializer,
+FetchAllOrdersSerializer,
+CreateOrdersSerializer
 )
 from django.http import Http404
 from rest_framework.views import APIView
@@ -1553,31 +1555,23 @@ class OneYearRevenueAnalist(APIView):
 
 ######################### Orders setail section start here###########
 # fetch all order
-from django.http import Http404
 
-class FetchAllOrdersDetail(APIView):
+
+
+
+############# more on order  section start here #############
+    
+class SplitOrder(APIView):
     def get(self, request, format=None):
-        try:
-            set_date = timezone.now() - timezone.timedelta(days=30)
-            snippets = Orders.objects.filter(seller_id=global_seller_id, inserted__date=set_date)
-            serializer = FetchAllOrdersSerializer(snippets, many=True)
-            return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        snippets = Orders.objects.filter(status='pending')
+        serializer = FetchAllOrdersSerializer(snippets, many=True)
+        return Response(serializer.data)
+    
 
-class FetchAllOrdersDetailById(APIView):
-    def get_object(self, pk):
-        try:
-            return Orders.objects.get(pk=pk)
-        except Orders.DoesNotExist:
-            raise Http404("Order not found")
-
-    def get(self, request, pk, format=None):
-        try:
-            snippet = self.get_object(pk)
-            serializer = FetchAllOrdersSerializer(snippet)
-            return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
-        except Http404 as e:
-            return Response({'success': False, 'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+class RassignOrder(APIView):
+    def get(self, request, format=None):
+        desired_statuses = ['pickup_requested','pickup_scheduled','manifested']
+        snippets = Orders.objects.filter(status__in=desired_statuses)
+        serializer = FetchAllOrdersSerializer(snippets, many=True)
+        return Response(serializer.data)
+        

@@ -40,6 +40,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'dashboardapp',
+    'shipmentapp',
+    'orderapp',
+    'billing_app'
 
    
 ]
