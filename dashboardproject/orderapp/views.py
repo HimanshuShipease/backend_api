@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from dashboardapp.models import Orders,NdrAttemps
+from dashboardapp.models import Orders,NdrAttemps,Products
 from dashboardapp.serializers import FetchAllOrdersSerializer
 from django.http import Http404
 from rest_framework.views import APIView
@@ -19,7 +19,7 @@ class FetchAllOrdersDetail(APIView):
     def get(self, request, format=None):
         try:
             set_date = timezone.now() - timezone.timedelta(days=30)
-            snippets = Orders.objects.filter(seller_id=global_seller_id, inserted__date=set_date)
+            snippets = Orders.objects.filter(seller_id=16, inserted__date=set_date)
             serializer = FetchAllOrdersSerializer(snippets, many=True)
             return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
         except Exception as e:
@@ -171,9 +171,28 @@ class ReturnOrder(APIView):
 #create new order section here
 class CreateOrderapi(APIView):
     serializer_class = CreateOrdersSerializer
+
     def post(self, request, format=None):
-        serializer = CreateOrdersSerializer(data=request.data)
+        serializer = CreateOrdersSerializer(data=request.data, partial=True)
+        get_weight = float(request.data.get('weight', 0))  # Default to 0 if 'weight' is not provided
+        get_length = float(request.data.get('length', 0))
+        get_breadth = float(request.data.get('breadth', 0))
+        get_height = float(request.data.get('height', 0))
+      
+        vol_weight = (get_weight * get_length * get_breadth * get_height) / 5000
+        print("val weight is", vol_weight)
+
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(channel='custom', seller_id=16, warehouse_id=42, vol_weight=vol_weight, last_sync='2023-12-13T19:45:27Z')
+            last_order = Orders.objects.filter(seller_id=16).latest('inserted')
+            product_order_id = last_order.id
+            product_sku = last_order.product_sku
+            product_name = last_order.product_name
+            product_quantity = last_order.product_qty
+            create_product = Products.objects.create(order_id=product_order_id,
+                                                    product_sku=product_sku,
+                                                    product_name=product_name,
+                                                    product_qty=product_quantity,
+                                                    item_id=product_order_id)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

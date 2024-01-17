@@ -42,7 +42,9 @@ INSTALLED_APPS = [
     'dashboardapp',
     'shipmentapp',
     'orderapp',
-    'billing_app'
+    'billing_app',
+    'weightreco_app',
+    
 
    
 ]
@@ -110,16 +112,16 @@ DATABASES = {
     }
 }
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'shipease_latest',
-#         'USER': 'shipease',
-#         'PASSWORD': 'Ship@Ease$2001',
-#         'HOST': 'localhost',
-#         'PORT': '3306',
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'shipease_latest',
+        'USER': 'shipease',
+        'PASSWORD': 'Ship@Ease$2001',
+        'HOST': '35.154.133.143',
+        'PORT': '3306',
+    }
+}
 
 ######add change setting for git###########
 # Password validation

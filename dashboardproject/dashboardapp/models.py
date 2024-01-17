@@ -103,7 +103,7 @@ class Orders(models.Model):
     awb_assigned_date = models.DateTimeField(blank=True, null=True)
     awb_barcode = models.TextField(blank=True, null=True)
     channel = models.CharField(max_length=50, blank=True, null=True)
-    inserted = models.DateTimeField(blank=True, null=True)
+    inserted = models.DateTimeField(auto_now=True,blank=True, null=True)
     inserted_by = models.IntegerField(blank=True, null=True)
     modified = models.DateTimeField(blank=True, null=True)
     modified_by = models.IntegerField(blank=True, null=True)
@@ -203,3 +203,22 @@ class NdrAttemps(models.Model):
     class Meta:
         managed = False
         db_table = 'ndr_attemps'        
+
+
+
+class Products(models.Model):
+    order_id = models.IntegerField()
+    product_sku = models.TextField(blank=True, null=True)
+    product_name = models.TextField()
+    product_unitprice = models.CharField(max_length=10, blank=True, null=True)
+    product_qty = models.CharField(max_length=10, blank=True, null=True)
+    total_amount = models.CharField(max_length=10, blank=True, null=True)
+    item_id = models.CharField(max_length=50,blank=True,null=True)
+    invoice_reference_number = models.CharField(max_length=60, blank=True, null=True)
+    export_reference_number = models.CharField(max_length=60, blank=True, null=True)
+    hsn_number = models.CharField(max_length=50, blank=True, null=True)
+    hts_number = models.CharField(max_length=50, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'products'
