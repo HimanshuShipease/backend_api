@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     'shipmentapp',
     'orderapp',
     'billing_app',
-    'weightreco_app',
+    'weightreco_app'
     
 
    

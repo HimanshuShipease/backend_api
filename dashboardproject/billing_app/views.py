@@ -15,22 +15,41 @@ from rest_framework import status
 from django.db.models import Sum
 from django.db.models.functions import Cast
 from django.db.models import IntegerField
+from datetime import datetime, timedelta
 
 global_seller_id=16
 
 ###api for shipment log
 class ShipingChargesApi(APIView):
     def get(self, request, format=None):
-        snippets = Orders.objects.filter(shipping_charges__isnull=False)[:30]
-        # Convert total_charges to IntegerField and then apply Sum
-        Total_freight_charges = Orders.objects.exclude(status__in=['pending', 'cancelled']).aggregate(
+        global_seller_id = 14366
+
+        # Calculate the date one month ago
+        one_month_ago = datetime.now() - timedelta(days=25)
+
+        # Fetch snippets with shipping charges for the last 25 days
+        snippets = Orders.objects.filter(
+            seller_id=global_seller_id,
+            shipping_charges__isnull=False,
+            inserted__gte=one_month_ago
+        )[:30]  # You may want to adjust the number of items to retrieve
+
+        # Calculate total freight charges excluding pending and cancelled orders
+        total_freight_charges = Orders.objects.filter(
+            seller_id=global_seller_id
+        ).exclude(status__in=['pending', 'cancelled']).aggregate(
             total_charges_sum=Cast(Sum('total_charges'), IntegerField())
-        )
+        )['total_charges_sum'] or 0
+
+        # Serialize the snippets
         serializer = ShipmentChargeOrderSerializer(snippets, many=True)
+
+        # Prepare the response data
         response_data = {
-            'Total_freight_charges': Total_freight_charges['total_charges_sum'],
+            'Total_freight_charges': total_freight_charges,
             'shipment_data': serializer.data,
         }
+
         return Response(response_data)
 
 
@@ -39,7 +58,7 @@ class RemitenceLog (APIView):
         # one_month_ago = datetime.now() - timedelta(days=50)
         snippets = CodTransactions.objects.all()[:30]
 
-        
+
         total_cod=Orders.objects.filter (seller_id=global_seller_id,order_type='cod',status='Delivered', rto_status='n').aggregate(
             total_cod_sum=Cast(Sum('invoice_amount'), IntegerField())) 
         cod_remited=Orders.objects.filter (seller_id=global_seller_id,order_type='cod',status='Delivered', rto_status='n',cod_remmited='y').aggregate(

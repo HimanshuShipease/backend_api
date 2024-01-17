@@ -28,7 +28,7 @@ class NdrAttemptsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ActionRequestedSerializer(serializers.ModelSerializer):
-    ndr_attempts = NdrAttemptsSerializer(many=True, read_only=True)
+    # ndr_attempts = NdrAttemptsSerializer(many=True, read_only=True)
 
     class Meta:
         model = Orders

@@ -28,12 +28,21 @@ class NdrRaisedApi(APIView):
 # action rewuested api
 class ActionRequestedApi(APIView):
     def get(self, request, format=None):
-        snippets =  Orders.objects.filter(ndr_status='y', ndr_action='requested',seller_id=global_seller_id)
-        action_requested_count =  Orders.objects.filter(ndr_status='y', ndr_action='requested',seller_id=global_seller_id)
+        global_seller_id = 14366
+        # Get order IDs from the filtered Orders
+        snippets = Orders.objects.filter(ndr_status='y', ndr_action='requested', seller_id=global_seller_id)
+        order_ids = snippets.values_list('id', flat=True)
+        # Fetch NdrAttempts details for the specified order_ids
+        ndr_attempts = NdrAttemps.objects.filter(order_id__in=order_ids)[:30]
+        action_requested_count = snippets.count()  # Use count() to get the count
+        # Serialize the data
         serializer = ActionRequestedSerializer(snippets, many=True)
+        ndr_attempts_serializer = NdrAttemptsSerializer(ndr_attempts, many=True)
+
         response_data = {
             'action_requested_count': action_requested_count,
             'shipment_data': serializer.data,
+            'ndr_attempts_data': ndr_attempts_serializer.data,
         }
         return Response(response_data)
     

@@ -23,5 +23,6 @@ urlpatterns = [
     path('api/v1/', include('dashboardapp.urls')),
     path('shipment/v1/', include('shipmentapp.urls')),
     path('order/v1/', include('orderapp.urls')),
-    path('billing/v1/', include('billing_app.urls'))
+    path('billing/v1/', include('billing_app.urls')),
+    path('weight/v1/', include('weightreco_app.urls'))
 ]
